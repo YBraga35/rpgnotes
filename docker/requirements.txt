@@ -1,18 +1,29 @@
-﻿openai-whisper==20240930
+# === CORE RPG NOTES DEPENDENCIES ===
+openai-whisper==20240930
 google-generativeai==0.8.5
 instructor[google-generativeai]==1.9.0
 python-dotenv==1.0.1
 pydantic==2.5.0
 tqdm==4.66.1
+
+# === AUDIO PROCESSING (SEM TORCH) ===
 soundfile==0.12.1
 librosa==0.10.2
 scipy>=1.12.0
 numpy>=1.26.0
+
+# === HTTP & API ===
 requests==2.31.0
 httpx==0.26.0
+
+# === UTILITIES ===
 colorama==0.4.6
 loguru==0.7.2
+
+# === GOOGLE INTEGRATIONS ===
 google-auth>=2.24.0
 google-auth-oauthlib>=1.1.0
 google-api-python-client>=2.108.0
+
+# === DISCORD ===
 discord-webhook==1.3.0

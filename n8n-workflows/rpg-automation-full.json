@@ -1,0 +1,271 @@
+{
+  "name": "RPG Notes Automation - Workflow Completo",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "/workspace/rpgnotes/downloads",
+        "watchFor": "file",
+        "options": {
+          "ignoreInitial": true,
+          "usePolling": false
+        }
+      },
+      "id": "file-watcher-craig",
+      "name": "File Watcher - Craig ZIP",
+      "type": "n8n-nodes-base.fileSystemWatcher",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "command": "if [[ \"{{ $json.path }}\" == *\"craig\"*\".zip\" ]]; then\n  echo \"✅ Arquivo Craig detectado: {{ $json.name }}\"\n  echo \"path={{ $json.path }}\"\n  echo \"name={{ $json.name }}\"\n  exit 0\nelse\n  echo \"❌ Arquivo não é Craig ZIP: {{ $json.name }}\"\n  exit 1\nfi"
+      },
+      "id": "validate-craig-file",
+      "name": "Validate Craig File",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [460, 300],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "command": "cd /workspace/rpgnotes\n\n# Log início do processamento\necho \"🚀 Iniciando processamento RPG Notes...\"\necho \"📁 Arquivo: {{ $json.path }}\"\necho \"⏰ Timestamp: $(date)\"\n\n# Executar script Python em modo automático\npython3 main.py --auto-mode \\\n  --input-file \"{{ $json.path }}\" \\\n  --language pt \\\n  --campaign OOTDL \\\n  --template detailed \\\n  --output-format obsidian\n\n# Capturar código de saída\nEXIT_CODE=$?\n\nif [ $EXIT_CODE -eq 0 ]; then\n  echo \"✅ Processamento concluído com sucesso\"\nelse\n  echo \"❌ Erro no processamento (código: $EXIT_CODE)\"\n  exit $EXIT_CODE\nfi"
+      },
+      "id": "execute-rpg-processing",
+      "name": "Execute RPG Processing",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [680, 300],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "amount": 10,
+        "unit": "seconds"
+      },
+      "id": "wait-processing",
+      "name": "Wait for Processing",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "command": "cd /workspace/rpgnotes\n\n# Verificar arquivos .md gerados recentemente\necho \"📄 Verificando arquivos gerados...\"\n\n# Criar timestamp de 10 minutos atrás\nTIMESTAMP=$(date -d '10 minutes ago' '+%Y%m%d%H%M')\n\n# Buscar arquivos .md mais novos que o timestamp\nGENERATED_FILES=$(find output/ -name \"*.md\" -newer /tmp/last_run 2>/dev/null || find output/ -name \"*.md\" -type f)\n\nif [ -n \"$GENERATED_FILES\" ]; then\n  echo \"✅ Arquivos encontrados:\"\n  echo \"$GENERATED_FILES\" | while read file; do\n    echo \"  📄 $file ($(stat -f%z \"$file\" 2>/dev/null || stat -c%s \"$file\") bytes)\"\n  done\n  echo \"files<<EOF\"\n  echo \"$GENERATED_FILES\"\n  echo \"EOF\"\nelse\n  echo \"⚠️ Nenhum arquivo .md encontrado\"\n  exit 1\nfi\n\n# Atualizar timestamp para próxima execução\ntouch /tmp/last_run"
+      },
+      "id": "check-output-files",
+      "name": "Check Output Files",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "operation": "upload",
+        "inputDataFieldName": "data",
+        "name": "RPG_Session_{{ DateTime.now().format('yyyy-MM-dd_HH-mm') }}.md",
+        "parents": {
+          "parentType": "list",
+          "folderId": "{{ $env.GOOGLE_DRIVE_FOLDER_ID }}"
+        }
+      },
+      "id": "upload-to-drive",
+      "name": "Upload to Google Drive", 
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "{{ $env.DISCORD_WEBHOOK_URL }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "content",
+              "value": "🎲 **Nova sessão de RPG processada!**\\n\\n📁 **Arquivo:** `{{ $node['File Watcher - Craig ZIP'].json.name }}`\\n📄 **Arquivos gerados:** {{ $node['Check Output Files'].json.stdout.split('\\n').length - 3 }}\\n☁️ **Salvo no Drive:** ✅\\n⏰ **Processado em:** {{ DateTime.now().format('dd/MM/yyyy HH:mm:ss') }}\\n\\n🎯 **Workflow N8N concluído com sucesso!**"
+            },
+            {
+              "name": "username",
+              "value": "RPG Notes Automator"
+            },
+            {
+              "name": "avatar_url", 
+              "value": "https://cdn-icons-png.flaticon.com/512/2991/2991148.png"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "notify-discord",
+      "name": "Notify Discord",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1560, 300],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "command": "cd /workspace/rpgnotes\n\necho \"🗑️ Iniciando limpeza de arquivos temporários...\"\n\n# Remover arquivos temporários\nrm -rf temp/*\necho \"✅ Diretório temp/ limpo\"\n\n# Remover arquivos craig.zip antigos (mais de 7 dias)\nfind downloads/ -name \"*.zip\" -type f -mtime +7 -delete 2>/dev/null || true\necho \"✅ Arquivos craig.zip antigos removidos\"\n\n# Remover logs antigos (mais de 30 dias)\nfind logs/ -name \"*.log\" -type f -mtime +30 -delete 2>/dev/null || true\necho \"✅ Logs antigos removidos\"\n\n# Mostrar espaço em disco liberado\necho \"💾 Limpeza concluída\"\ndf -h /workspace/rpgnotes | tail -1 | awk '{print \"Espaço disponível: \" $4}'"
+      },
+      "id": "cleanup-files",
+      "name": "Cleanup Files",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [1780, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "{{ $env.DISCORD_WEBHOOK_URL }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type", 
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "content",
+              "value": "❌ **Erro no processamento RPG Notes**\\n\\n📁 **Arquivo:** `{{ $node['File Watcher - Craig ZIP'].json.name }}`\\n🚨 **Erro:** {{ $node['Execute RPG Processing'].json.stderr || 'Erro desconhecido' }}\\n⏰ **Timestamp:** {{ DateTime.now().format('dd/MM/yyyy HH:mm:ss') }}\\n\\n🔧 **Verifique os logs para mais detalhes.**"
+            },
+            {
+              "name": "username",
+              "value": "RPG Notes Automator - ERROR"
+            },
+            {
+              "name": "avatar_url",
+              "value": "https://cdn-icons-png.flaticon.com/512/1828/1828843.png"
+            }
+          ]
+        }
+      },
+      "id": "notify-error",
+      "name": "Notify Error",
+      "type": "n8n-nodes-base.httpRequest", 
+      "typeVersion": 4,
+      "position": [680, 500],
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "File Watcher - Craig ZIP": {
+      "main": [
+        [
+          {
+            "node": "Validate Craig File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Craig File": {
+      "main": [
+        [
+          {
+            "node": "Execute RPG Processing", 
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute RPG Processing": {
+      "main": [
+        [
+          {
+            "node": "Wait for Processing",
+            "type": "main", 
+            "index": 0
+          }
+        ]
+      ],
+      "error": [
+        [
+          {
+            "node": "Notify Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Processing": {
+      "main": [
+        [
+          {
+            "node": "Check Output Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Output Files": {
+      "main": [
+        [
+          {
+            "node": "Upload to Google Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload to Google Drive": {
+      "main": [
+        [
+          {
+            "node": "Notify Discord",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Discord": {
+      "main": [
+        [
+          {
+            "node": "Cleanup Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "timezone": "America/Sao_Paulo",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": {
+      "workflowId": "",
+      "active": false
+    }
+  },
+  "versionId": "1.0.0",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "id": "rpg-notes-automation-full",
+  "tags": ["RPG", "Automation", "AI", "Transcription"]
+}

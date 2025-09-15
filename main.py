@@ -203,18 +203,32 @@ class RPGNotesAutomator:
         print("\\n🔄 Retornando ao menu principal...")
         input("Pressione Enter para continuar...")
 
+def parse_args():
+    parser = argparse.ArgumentParser(description='RPG Session Notes Automator')
+    parser.add_argument('--auto-mode', action='store_true')
+    parser.add_argument('--input-file', help='Caminho craig.zip')
+    parser.add_argument('--language', choices=['pt', 'en'], default='pt')
+    parser.add_argument('--campaign', choices=['OOTDL', 'Avernus', 'Custom'], default='OOTDL')
+    parser.add_argument('--template', choices=['detailed', 'simple', 'narrative'], default='detailed')
+    return parser.parse_args()
+
 def main():
-    """Função principal"""
-    try:
-        # Cria e executa automatizador
+    args = parse_args()
+    if args.auto_mode:
+        # Modo automático para N8N
+        auto_config = {
+            'input_file': args.input_file,
+            'language': args.language, 
+            'campaign': args.campaign,
+            'template': args.template
+        }
+        automator = RPGNotesAutomator(auto_config)
+        success = automator.run_automated_workflow()
+        sys.exit(0 if success else 1)
+    else:
+        # Modo interativo normal
         automator = RPGNotesAutomator()
         automator.run_main_loop()
-        
-    except Exception as e:
-        print(f"❌ Erro fatal ao inicializar: {e}")
-        import traceback
-        traceback.print_exc()
-        sys.exit(1)
 
 if __name__ == "__main__":
     main()
