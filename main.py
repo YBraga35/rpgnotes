@@ -4,6 +4,8 @@ RPG Session Notes Automator - Versão Modularizada Corrigida
 Arquivo principal reformulado para usar arquivos auxiliares
 """
 
+import argparse
+
 # Imports de módulos do sistema
 from core.config import Config
 from core.workflows import WorkflowManager

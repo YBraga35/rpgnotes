@@ -23,7 +23,7 @@ class WhisperTranscriber:
         self.model = None
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         
-    def load_whisper_model(self, model_size: str = "small"):
+    def load_whisper_model(self, model_size: str = "medium"):
         """
         Carrega modelo Whisper
         
