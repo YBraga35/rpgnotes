@@ -53,6 +53,12 @@ class WhisperTranscriber:
         
         # Encontra arquivos FLAC
         flac_files = sorted(self.config.AUDIO_OUTPUT_DIR.glob("*.flac"))
+        # Encontra arquivos FLAC e exclui os do BotYan (Bot Áudio)
+        all_files = sorted(self.config.AUDIO_OUTPUT_DIR.glob("*.flac"))
+        flac_files = [
+            f for f in all_files
+            if "BotYan" not in f.stem  # ignora arquivos do bot Craig/BotYan
+ ]
         if not flac_files:
             print("Nenhum arquivo .flac para transcrever.")
             return False
